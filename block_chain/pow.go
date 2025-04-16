@@ -10,6 +10,7 @@ import (
 const targetBits = 24
 const maxNonce = 100000000
 
+// ProofOfWork 工作量证明
 type ProofOfWork struct {
 	block  *Block
 	target *big.Int
@@ -30,7 +31,7 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PreBlockHash,
-			pow.block.Data,
+			pow.block.HashTransactions(),
 			IntToHex(pow.block.TimeStamp),
 			IntToHex(int64(targetBits)),
 			IntToHex(int64(nonce)),
@@ -48,17 +49,13 @@ func IntToHex(i int64) []byte {
 		b[pos] = hex[u&0xF]
 		u >>= 4
 	}
-	// 填充前导零
-	//for pos := 0; b[pos] == 0; pos++ {
-	//	b[pos] = '0'
-	//}
 	return b
 }
 func (pow *ProofOfWork) Run() (int, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
 	nonce := 0
-	fmt.Printf("Mining the block containing \"%s\"\n", pow.block.Data)
+	fmt.Printf("Mining a new block")
 	for nonce < maxNonce {
 		data := pow.prepareData(nonce)
 		hash = sha256.Sum256(data)

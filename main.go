@@ -1,16 +1,23 @@
 package main
 
 import (
-	"github.com/qujing226/blockchain/chain"
+	"github.com/qujing226/blockchain/cli"
+	"github.com/qujing226/blockchain/server"
+	"os"
 )
 
 func main() {
-	c := chain.NewBlockChain()
-	c.AddBlock("Send 1 BTC to Ivan")
-	c.AddBlock("Send 2 more BTC to Ivan")
+	ch := make(chan struct{}, 1)
 
-	//for _, block := range c.db {
-	//	pow := chain.NewProofOfWork(block)
-	//	fmt.Printf("Pow : %s\n", strconv.FormatBool(pow.Validate()))
-	//}
+	go func() {
+		if os.Getenv("NODE_ID") == "3003" {
+			server.InitConfig()
+			server.StartDidService()
+		}
+		ch <- struct{}{}
+	}()
+
+	c := cli.CLI{}
+	c.Run()
+	<-ch
 }
