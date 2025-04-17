@@ -50,6 +50,8 @@ func (cli *CLI) Run() {
 	startNodeCmd := flag.NewFlagSet("startnode", flag.ExitOnError)
 	createDidCmd := flag.NewFlagSet("createdid", flag.ExitOnError)
 
+	webServCmd := flag.NewFlagSet("startweb", flag.ExitOnError)
+
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
 	sendFrom := sendCmd.String("from", "", "Source wallet address")
@@ -102,6 +104,12 @@ func (cli *CLI) Run() {
 		}
 	case "createdid":
 		err := createDidCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+
+		}
+	case "startweb":
+		err := webServCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -166,5 +174,9 @@ func (cli *CLI) Run() {
 			os.Exit(1)
 		}
 		cli.createDid(nodeID, *didStr)
+	}
+	
+	if webServCmd.Parsed() {
+		cli.startWeb()
 	}
 }

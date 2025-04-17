@@ -11,6 +11,9 @@ import (
 
 const walletFile = "./components/wallet_%s.dat"
 
+// IDE:
+//const walletFile = "../components/wallet_%s.dat"
+
 type Wallets struct {
 	Wallets map[string]*Wallet
 }

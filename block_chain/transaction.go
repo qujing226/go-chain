@@ -210,7 +210,6 @@ func (tx *Transaction) Sign(privateKey ecdsa.PrivateKey, prevTXs map[string]Tran
 		yBytes := fixedBytes(privateKey.PublicKey.Y.Bytes(), 32)
 		fullPubKey := append(xBytes, yBytes...)
 		tx.Vin[inID].PubKey = fullPubKey
-		fmt.Println(dataToSign)
 
 		// 清空临时拷贝中对应的 PubKey
 		txCopy.Vin[inID].PubKey = nil

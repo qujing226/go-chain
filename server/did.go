@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	_ "embed"
-	"encoding/hex"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/nuts-foundation/go-did/did"
@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"time"
 )
 
 //go:embed store_publicKey.lua
@@ -90,14 +91,10 @@ func CreateDidDocument(ctx *gin.Context) {
 }
 
 type verifyDidDocumentReq struct {
-	DID     string `json:"did"`
-	Address string `json:"address"`
-	// Challenge 经由服务器生成后发给用户，用户计算私钥签名后传回，假设以 hex 格式编码
+	DID       string `json:"did"`
+	Address   string `json:"address"`
 	Challenge string `json:"challenge"`
-
-	// 签名组成部分（r, s），均以 hex 字符串传输
-	SignatureR string `json:"signature_r"`
-	SignatureS string `json:"signature_s"`
+	Signature string `json:"signature"` // 完整的 base64 格式签名（64字节签名编码后的字符串）
 }
 
 func SendChallenge(ctx *gin.Context) {
@@ -138,24 +135,22 @@ func SendChallenge(ctx *gin.Context) {
 	if err != nil {
 		fmt.Println("store pubkey error")
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "redis存储公钥失败", "error": err.Error()})
+		return
 	}
 
 	ch := chaindid.GenerateChallenge()
+	err = storeChallengeFromCache(req.DID, ch)
+	if err != nil {
+		fmt.Println("store challenge error")
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "redis存储challenge失败", "error": err.Error()})
+		return
+	}
 
 	ctx.JSON(200, gin.H{"message": "success",
 		"challenge": ch})
 }
 
-// VerifyDid 实现整个验证流程
-//
-// 流程说明：
-//  1. Server 根据请求中的 DID 查询链上存储的 DID Document。
-//  2. 从 DID Document 中提取登记时的公钥（assertionMethod 部分）。
-//  3. 将请求中的 challenge 和签名（r、s）解码（假设均为 hex 格式）。
-//  4. 使用 ECDSA 签名验证算法验证该签名是否由该公钥产生。
-//  5. 如果本地验证通过，Server 将签名数据（例如 DID、Address、challenge、签名）转给 Issuer；
-//     此处示例采用一个模拟的函数 simulateIssuerVerification 来表示这一过程。
-//  6. Issuer 返回验证结果后，Server 返回最终结果给客户端。
+// VerifyDid 验证 challenge
 func VerifyDid(ctx *gin.Context) {
 	var req verifyDidDocumentReq
 	if err := ctx.BindJSON(&req); err != nil {
@@ -164,26 +159,23 @@ func VerifyDid(ctx *gin.Context) {
 	}
 
 	// 1. 解码 challenge（hex 编码转为字节数组）
-	challengeBytes, err := hex.DecodeString(req.Challenge)
+	ch, err := getChallengeFromCache(req.DID)
 	if err != nil {
-		fmt.Println("challenge decode error")
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "challenge decode error", "error": err.Error()})
+		fmt.Println("get challenge error")
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "get challenge error", "error": err.Error()})
+		return
+	}
+
+	sigBytes, err := base64.StdEncoding.DecodeString(req.Signature)
+	if err != nil {
+		fmt.Println("signature decode error")
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "signature decode error", "error": err.Error()})
 		return
 	}
 
 	// 2. 解码签名的 r 和 s 部分
-	r := new(big.Int)
-	s := new(big.Int)
-	if _, ok := r.SetString(req.SignatureR, 16); !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "signature_r 格式错误"})
-		return
-	}
-
-	// 3. 从内存中读取
-	if _, ok := s.SetString(req.SignatureS, 16); !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "signature_s 格式错误"})
-		return
-	}
+	r := new(big.Int).SetBytes(sigBytes[:len(sigBytes)/2])
+	s := new(big.Int).SetBytes(sigBytes[len(sigBytes)/2:])
 
 	pubKey, err := getPubKeyFromCache(req.DID)
 	if err != nil {
@@ -192,7 +184,7 @@ func VerifyDid(ctx *gin.Context) {
 		return
 	}
 
-	if !chaindid.VerifyChallengeSignature(challengeBytes, r, s, pubKey) {
+	if !chaindid.VerifyChallengeSignature(ch, r, s, pubKey) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "本地签名验证失败"})
 		return
 	}
@@ -231,25 +223,78 @@ func decodePubKey(pubKey []byte) (*ecdsa.PublicKey, error) {
 }
 
 func storePubKeyToCache(didStr string, pubKey *ecdsa.PublicKey) error {
-	buf, err := json.MarshalIndent(pubKey, "", "  ")
-	if err != nil {
-		return err
-	}
-	err = rdb.Eval(context.Background(), storePubKey, []string{didStr}, buf).Err()
+	xBytes := pubKey.X.Bytes()
+	yBytes := pubKey.Y.Bytes()
+
+	// 确保 xBytes 和 yBytes 长度为 32 字节
+	xBytes = fixedBytes(xBytes, 32)
+	yBytes = fixedBytes(yBytes, 32)
+
+	// 拼接 xBytes 和 yBytes
+	buf := append(xBytes, yBytes...)
+
+	err := rdb.Eval(context.Background(), storePubKey, []string{didStr}, buf).Err()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+func fixedBytes(b []byte, size int) []byte {
+	if len(b) > size {
+		return b[:size]
+	}
+	return append(make([]byte, size-len(b)), b...)
+}
+
 func getPubKeyFromCache(didStr string) (*ecdsa.PublicKey, error) {
-	pubKey, err := rdb.Eval(context.Background(), getPubKey, []string{didStr}, nil).Result()
+	pubKeyData, err := rdb.Eval(context.Background(), getPubKey, []string{didStr}, []interface{}{}).Result()
 	if err != nil {
 		return nil, err
 	}
-	var pubkey *ecdsa.PublicKey
-	if err := json.Unmarshal([]byte(pubKey.(string)), &pubkey); err != nil {
+
+	var buf []byte
+	switch v := pubKeyData.(type) {
+	case []byte:
+		buf = v
+	case string:
+		buf = []byte(v)
+	default:
+		return nil, fmt.Errorf("invalid data type: expected []byte or string, got %T", pubKeyData)
+	}
+
+	if len(buf) != 64 {
+		return nil, fmt.Errorf("invalid public key length: expected 64 bytes, got %d bytes", len(buf))
+	}
+
+	xBytes := buf[:32]
+	yBytes := buf[32:]
+
+	x := new(big.Int).SetBytes(xBytes)
+	y := new(big.Int).SetBytes(yBytes)
+
+	curve := elliptic.P256()
+	pubKey := &ecdsa.PublicKey{
+		Curve: curve,
+		X:     x,
+		Y:     y,
+	}
+
+	return pubKey, nil
+}
+
+func storeChallengeFromCache(didStr string, ch []byte) error {
+	err := rdb.SetEx(context.Background(), didStr+":challenge", ch, 5*time.Minute).Err()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func getChallengeFromCache(didStr string) ([]byte, error) {
+	challengeData, err := rdb.Get(context.Background(), didStr+":challenge").Result()
+	if err != nil {
 		return nil, err
 	}
-	return pubkey, nil
+	return []byte(challengeData), nil
 }

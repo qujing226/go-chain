@@ -464,7 +464,7 @@ func printInformation(nodeID string, minerAddress string) {
 	magenta := color.New(color.FgMagenta).SprintFunc()
 
 	fmt.Printf("%s %s %s\n", green("==="), green("Date:"), green(time.Now().Format("2006-01-02 15:04:05")))
-	fmt.Printf("%s %s %s %s %s\n", green("==="), yellow("Node:"), yellow(nodeID), yellow("is Handling Connection... | Address:"), yellow(nodeAddress))
+	fmt.Printf("%s %s %s %s %s\n", green("==="), yellow("Node:"), yellow(nodeID), yellow("is Handling Connection... | address:"), yellow(nodeAddress))
 	if minerAddress != "" {
 		fmt.Printf("%s %s\n", green("==="), magenta("INFO: This is a miner Node!"))
 	}

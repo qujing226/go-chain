@@ -60,7 +60,7 @@ func TestGenerateDidDocument(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := GenerateDidDocument(tt.pubKey)
+			doc := GenerateDidDocument(&tt.pubKey)
 			docJson, err := json.MarshalIndent(doc, "", "  ")
 			require.NoError(t, err)
 			fmt.Println(string(docJson))
@@ -71,7 +71,7 @@ func TestGenerateDidDocument(t *testing.T) {
 func TestVerifyVerifyDidDocument(t *testing.T) {
 	keyPair, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	doc := GenerateDidDocument(keyPair.PublicKey)
+	doc := GenerateDidDocument(&keyPair.PublicKey)
 	docJSON, err := json.MarshalIndent(doc, "", "  ")
 	require.NoError(t, err)
 	fmt.Println("generate did document: ")
