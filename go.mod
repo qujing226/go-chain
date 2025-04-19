@@ -3,6 +3,7 @@ module github.com/qujing226/blockchain
 go 1.23.4
 
 require (
+	filippo.io/mlkem768 v0.0.0-20241021091500-d85de16e2039
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/fatih/color v1.18.0
 	github.com/gin-gonic/gin v1.10.0
@@ -10,7 +11,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.11
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.37.0
 )
 
 require (
@@ -49,12 +50,13 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/shengdoushi/base58 v1.0.0 // indirect
+	github.com/symbolicsoft/kyber-k2so v0.2.3 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
