@@ -43,6 +43,7 @@ func (cli *CLI) Run() {
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
+	createKemWalletCmd := flag.NewFlagSet("createkemwallet", flag.ExitOnError)
 	listAddressesCmd := flag.NewFlagSet("listaddresses", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	reindexUTXOCmd := flag.NewFlagSet("reindexutxo", flag.ExitOnError)
@@ -74,6 +75,11 @@ func (cli *CLI) Run() {
 		}
 	case "createwallet":
 		err := createWalletCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "createkemwallet":
+		err := createKemWalletCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -138,6 +144,10 @@ func (cli *CLI) Run() {
 		cli.createWallet(nodeID)
 	}
 
+	if createKemWalletCmd.Parsed() {
+		cli.createKemWallet()
+	}
+
 	if listAddressesCmd.Parsed() {
 		cli.listAddresses(nodeID)
 	}
@@ -175,7 +185,7 @@ func (cli *CLI) Run() {
 		}
 		cli.createDid(nodeID, *didStr)
 	}
-	
+
 	if webServCmd.Parsed() {
 		cli.startWeb()
 	}
