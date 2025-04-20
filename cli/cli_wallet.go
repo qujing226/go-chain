@@ -16,7 +16,10 @@ func (cli *CLI) createWallet(nodeID string) {
 func (cli *CLI) createKemWallet() {
 	kemWallets, _ := wallet.NewKemWallets()
 	address := kemWallets.CreateWallet()
-	kemWallets.SaveToFile()
+	err := kemWallets.SaveToFile()
+	if err != nil {
+		return
+	}
 
-	fmt.Printf("Your new address: %s\n", address)
+	fmt.Printf("Your new kem address: %s\n", address)
 }

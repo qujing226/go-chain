@@ -29,7 +29,7 @@ var getPubKey string
 var nodeID string //
 var bc *chain.BlockChain
 var ws *wallet.Wallets
-
+var kws *wallet.KemWallets
 var rdb redis.Cmdable
 
 func InitConfig() {
@@ -44,6 +44,7 @@ func InitConfig() {
 		Addr:     "localhost:16379",
 		Password: "",
 	})
+	kws, _ = wallet.NewKemWallets()
 }
 
 func StartDidService() {
@@ -56,6 +57,7 @@ func RegisterRoutes(s *gin.Engine) {
 	s.POST("/did/create", CreateDidDocument)
 	s.POST("/did/challenge", SendChallenge)
 	s.POST("/did/verify", VerifyDid)
+	s.POST("/did/update/kem", UpdateDocWithKem)
 }
 
 func CreateDidDocument(ctx *gin.Context) {
@@ -79,11 +81,10 @@ func CreateDidDocument(ctx *gin.Context) {
 		})
 	}
 	doc := chaindid.GenerateDidDocument(p)
-
+	// doc 上链
 	go func() {
 		SaveDocToBlockChain(&w, doc)
 	}()
-	// doc 上链
 
 	ctx.JSON(200, gin.H{
 		"did_document": doc,
@@ -202,6 +203,51 @@ func SaveDocToBlockChain(w *wallet.Wallet, doc *did.Document) {
 	// 向中心节点发送 did 交易
 	fmt.Println("正在将 DID document 发送至中心节点")
 	SendTx(tx)
+}
+
+func UpdateDocToBlockChain(w *wallet.Wallet, doc *did.Document) {
+	b, err := chaindid.SerializeDidDocument(doc)
+	if err != nil {
+		log.Println("serialize did document error")
+	}
+	tx := chain.NewDidDocumentTransaction(w, b)
+	// 向中心节点发送 did 交易
+	fmt.Println("正在将 DID document 发送至中心节点")
+	SendTx(tx)
+}
+
+func UpdateDocWithKem(ctx *gin.Context) {
+	var req struct {
+		Kind       string `json:"kind"`
+		Did        string `json:"did"`
+		Address    string `json:"address"`
+		KemAddress string `json:"kem_address"`
+	}
+	err := ctx.BindJSON(&req)
+	if err != nil {
+		fmt.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+		return
+	}
+	if req.Kind != "kem" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "kind error"})
+		return
+	}
+	kw := kws.GetWallet(req.KemAddress)
+	w := ws.GetWallet(req.Address)
+
+	// 先上链查找
+	doc := chain.FindDidDocument(bc, req.Did)
+	// 更新kem公钥
+	doc = chaindid.UpdateDidDocument(doc, kw.EncapsulationKey)
+
+	// 存储
+	go func() {
+		UpdateDocToBlockChain(&w, doc)
+	}()
+	fmt.Printf("%+v\n", doc)
+	ctx.JSON(http.StatusOK, gin.H{"did_document": doc})
+
 }
 
 // decodePubKey 用于解码字符串 ——> 公钥，但本项目采用地址读取公私钥

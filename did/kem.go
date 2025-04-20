@@ -17,8 +17,6 @@ func EncryptWithKEM(encapsulationKey [1184]byte) (sharedSecretSender [32]byte, c
 	if err != nil {
 		log.Fatalf("加密失败: %v", err)
 	}
-	//fmt.Printf("加密生成的密文: %x\n", ciphertext)
-	//fmt.Printf("发送方共享密钥: %x\n", sharedSecretSender)
 	return sharedSecretSender, ciphertext, err
 
 }

@@ -51,6 +51,11 @@ func GenerateDidDocument(pubKey *ecdsa.PublicKey) *did.Document {
 	return doc
 }
 
+func UpdateDidDocument(doc *did.Document, pubKey [1184]byte) *did.Document {
+	didStr := doc.ID.String()
+	return addLatticeKeyToDidDocument(doc, didStr, pubKey)
+}
+
 func SerializeDidDocument(doc *did.Document) ([]byte, error) {
 	docJson, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {

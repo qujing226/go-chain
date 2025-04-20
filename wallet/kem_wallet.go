@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-const kemWalletFile = "../components/kem_wallets.dat"
+const kemWalletFile = "./components/kem_wallets.dat"
 
 var KemWalletVersion = []byte{0x66}
 
@@ -65,7 +65,7 @@ func NewKemWallets() (*KemWallets, error) {
 
 func (kws *KemWallets) CreateWallet() string {
 	kw := NewKemWallet()
-
+	//fmt.Printf("Your kem pubKey: %s\n", base64.StdEncoding.EncodeToString(kw.EncapsulationKey[:]))
 	address := fmt.Sprintf("%s", kw.GetAddress())
 	kws.KWallets[address] = &kw
 	return address
