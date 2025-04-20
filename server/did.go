@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -55,9 +56,85 @@ func StartDidService() {
 
 func RegisterRoutes(s *gin.Engine) {
 	s.POST("/did/create", CreateDidDocument)
+	s.POST("/did/find", FindDidDocument)
 	s.POST("/did/challenge", SendChallenge)
 	s.POST("/did/verify", VerifyDid)
 	s.POST("/did/update/kem", UpdateDocWithKem)
+
+	s.POST("/kem/publickey/get", GetKemPubKeyFromDid)
+}
+
+func GetKemPubKeyFromDid(ctx *gin.Context) {
+	var req struct {
+		DidStr string `json:"did"`
+	}
+
+	// 解析 JSON 请求
+	if err := ctx.BindJSON(&req); err != nil {
+		ctx.JSON(400, gin.H{
+			"message": "DID error",
+		})
+		return
+	}
+
+	// 查找 DID 文档
+	doc := func() *did.Document {
+		didDoc := chain.FindDidDocument(bc, req.DidStr)
+		if didDoc == nil {
+			ctx.JSON(http.StatusOK, gin.H{"message": "未找到 DID document"})
+			return nil
+		}
+		return didDoc
+	}()
+	if doc == nil {
+		return
+	}
+
+	// 提取 AssertionMethod 中的 ID
+	var latticeKeyID string
+	for _, relationship := range doc.AssertionMethod {
+		s := relationship.ID
+		if strings.Contains(s.String(), "#lattice-key") {
+			latticeKeyID = relationship.ID.String()
+			break
+		}
+	}
+
+	if latticeKeyID == "" {
+		ctx.JSON(http.StatusOK, gin.H{"message": "未找到 lattice-key"})
+		return
+	}
+
+	// 在 VerificationMethod 中匹配 lattice-key
+	for _, method := range doc.VerificationMethod {
+		if method.ID.String() == latticeKeyID && method.Type == "KemJsonKey2025" {
+			// 提取 publicKeyJwk
+			ctx.JSON(http.StatusOK, gin.H{
+				"publicKeyJwk": method.PublicKeyJwk,
+			})
+			return
+		}
+	}
+
+	// 如果未找到对应的 KemJsonKey2025 类型的公钥
+	ctx.JSON(http.StatusOK, gin.H{"message": "未找到格基加密公钥"})
+}
+
+func FindDidDocument(ctx *gin.Context) {
+	var req struct {
+		Did string `json:"did"`
+	}
+	doc := func() *did.Document {
+		doc := chain.FindDidDocument(bc, req.Did)
+		if doc == nil {
+			ctx.JSON(http.StatusOK, gin.H{"message": "未找到 DID document"})
+			return nil
+		}
+		return doc
+	}()
+	ctx.JSON(200, gin.H{
+		"did_document": doc,
+	})
 }
 
 func CreateDidDocument(ctx *gin.Context) {
